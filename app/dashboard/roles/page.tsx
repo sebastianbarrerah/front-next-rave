@@ -1,132 +1,16 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Check, Edit, Plus, Search, Shield, ShieldAlert, ShieldCheck, Trash2, UserCog } from "lucide-react"
+import { Check, Edit, Plus, Search, Shield, ShieldAlert, ShieldCheck, Trash2, UserCog, Loader2 } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
-
-// Roles de ejemplo
-const rolesEjemplo = [
-  {
-    id: 1,
-    nombre: "Administrador",
-    descripcion: "Acceso completo al sistema",
-    usuarios: 3,
-    activo: true,
-    permisos: {
-      dashboard: true,
-      inventario: true,
-      ventas: true,
-      facturacion: true,
-      cotizaciones: true,
-      estadisticas: true,
-      clientes: true,
-      reportes: true,
-      configuracion: true,
-      documentos: true,
-    },
-  },
-  {
-    id: 2,
-    nombre: "Vendedor",
-    descripcion: "Acceso a ventas e inventario",
-    usuarios: 8,
-    activo: true,
-    permisos: {
-      dashboard: true,
-      inventario: true,
-      ventas: true,
-      facturacion: false,
-      cotizaciones: true,
-      estadisticas: false,
-      clientes: true,
-      reportes: false,
-      configuracion: false,
-      documentos: true,
-    },
-  },
-  {
-    id: 3,
-    nombre: "Contador",
-    descripcion: "Acceso a facturación y reportes",
-    usuarios: 2,
-    activo: true,
-    permisos: {
-      dashboard: true,
-      inventario: false,
-      ventas: false,
-      facturacion: true,
-      cotizaciones: false,
-      estadisticas: true,
-      clientes: false,
-      reportes: true,
-      configuracion: false,
-      documentos: true,
-    },
-  },
-  {
-    id: 4,
-    nombre: "Almacenista",
-    descripcion: "Gestión de inventario",
-    usuarios: 4,
-    activo: true,
-    permisos: {
-      dashboard: true,
-      inventario: true,
-      ventas: false,
-      facturacion: false,
-      cotizaciones: false,
-      estadisticas: false,
-      clientes: false,
-      reportes: false,
-      configuracion: false,
-      documentos: false,
-    },
-  },
-  {
-    id: 5,
-    nombre: "Gerente",
-    descripcion: "Acceso a estadísticas y reportes",
-    usuarios: 1,
-    activo: true,
-    permisos: {
-      dashboard: true,
-      inventario: true,
-      ventas: true,
-      facturacion: true,
-      cotizaciones: true,
-      estadisticas: true,
-      clientes: true,
-      reportes: true,
-      configuracion: false,
-      documentos: true,
-    },
-  },
-  {
-    id: 6,
-    nombre: "Invitado",
-    descripcion: "Acceso limitado de solo lectura",
-    usuarios: 0,
-    activo: false,
-    permisos: {
-      dashboard: true,
-      inventario: false,
-      ventas: false,
-      facturacion: false,
-      cotizaciones: false,
-      estadisticas: false,
-      clientes: false,
-      reportes: false,
-      configuracion: false,
-      documentos: false,
-    },
-  },
-]
+import { useToast } from "@/components/ui/use-toast"
+import RolesService, { type Rol } from "@/services/roles-service"
 
 // Módulos del sistema
 const modulos = [
@@ -143,19 +27,57 @@ const modulos = [
 ]
 
 export default function RolesPage() {
+  const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
-  const [rolSeleccionado, setRolSeleccionado] = useState(null)
+  const [rolSeleccionado, setRolSeleccionado] = useState<Rol | null>(null)
   const [editandoRol, setEditandoRol] = useState(false)
+  const [roles, setRoles] = useState<Rol[]>([])
+  const [rolesFiltrados, setRolesFiltrados] = useState<Rol[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [nuevoRol, setNuevoRol] = useState<Omit<Rol, "id">>({
+    nombre: "",
+    descripcion: "",
+    permisos: modulos.reduce((acc, modulo) => ({ ...acc, [modulo.id]: false }), {}),
+    activo: true,
+    usuarios: 0,
+  })
+
+  // Cargar roles al montar el componente
+  useEffect(() => {
+    fetchRoles()
+  }, [])
+
+  // Función para obtener roles
+  const fetchRoles = async () => {
+    setIsLoading(true)
+    try {
+      const data = await RolesService.getAll()
+      setRoles(data)
+      setRolesFiltrados(data)
+    } catch (error) {
+      console.error("Error al cargar roles:", error)
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los roles",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   // Filtrar roles
-  const rolesFiltrados = rolesEjemplo.filter(
-    (rol) =>
-      rol.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      rol.descripcion.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+  useEffect(() => {
+    const filtrados = roles.filter(
+      (rol) =>
+        rol.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        rol.descripcion.toLowerCase().includes(searchTerm.toLowerCase()),
+    )
+    setRolesFiltrados(filtrados)
+  }, [searchTerm, roles])
 
   // Seleccionar rol para editar
-  const seleccionarRol = (rol) => {
+  const seleccionarRol = (rol: Rol) => {
     setRolSeleccionado(rol)
     setEditandoRol(true)
   }
@@ -166,11 +88,100 @@ export default function RolesPage() {
     setEditandoRol(false)
   }
 
+  // Guardar rol
+  const handleGuardarRol = async () => {
+    try {
+      if (rolSeleccionado) {
+        // Actualizar rol existente
+        await RolesService.update(rolSeleccionado.id, rolSeleccionado)
+        toast({
+          title: "Rol actualizado",
+          description: `Rol ${rolSeleccionado.nombre} actualizado correctamente`,
+        })
+      } else {
+        // Crear nuevo rol
+        await RolesService.create(nuevoRol)
+        toast({
+          title: "Rol creado",
+          description: `Rol ${nuevoRol.nombre} creado correctamente`,
+        })
+        setNuevoRol({
+          nombre: "",
+          descripcion: "",
+          permisos: modulos.reduce((acc, modulo) => ({ ...acc, [modulo.id]: false }), {}),
+          activo: true,
+          usuarios: 0,
+        })
+      }
+
+      // Actualizar la lista de roles
+      fetchRoles()
+      setEditandoRol(false)
+      setRolSeleccionado(null)
+    } catch (error) {
+      console.error("Error al guardar rol:", error)
+      toast({
+        title: "Error",
+        description: "No se pudo guardar el rol",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Eliminar rol
+  const handleEliminarRol = async (id: number) => {
+    if (confirm("¿Está seguro de eliminar este rol?")) {
+      try {
+        await RolesService.delete(id)
+        toast({
+          title: "Rol eliminado",
+          description: "Rol eliminado correctamente",
+        })
+
+        // Actualizar la lista de roles
+        fetchRoles()
+      } catch (error) {
+        console.error("Error al eliminar rol:", error)
+        toast({
+          title: "Error",
+          description: "No se pudo eliminar el rol",
+          variant: "destructive",
+        })
+      }
+    }
+  }
+
+  // Cambiar permiso
+  const togglePermiso = (moduloId: string) => {
+    if (rolSeleccionado) {
+      setRolSeleccionado({
+        ...rolSeleccionado,
+        permisos: {
+          ...rolSeleccionado.permisos,
+          [moduloId]: !rolSeleccionado.permisos[moduloId],
+        },
+      })
+    } else {
+      setNuevoRol({
+        ...nuevoRol,
+        permisos: {
+          ...nuevoRol.permisos,
+          [moduloId]: !nuevoRol.permisos[moduloId],
+        },
+      })
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Gestión de Roles</h1>
-        <Button>
+        <Button
+          onClick={() => {
+            setRolSeleccionado(null)
+            setEditandoRol(true)
+          }}
+        >
           <Plus className="mr-2 h-4 w-4" /> Nuevo Rol
         </Button>
       </div>
@@ -182,7 +193,7 @@ export default function RolesPage() {
             <Shield className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{rolesEjemplo.length}</div>
+            <div className="text-2xl font-bold">{roles.length}</div>
           </CardContent>
         </Card>
         <Card>
@@ -191,7 +202,7 @@ export default function RolesPage() {
             <ShieldCheck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{rolesEjemplo.filter((r) => r.activo).length}</div>
+            <div className="text-2xl font-bold">{roles.filter((r) => r.activo).length}</div>
           </CardContent>
         </Card>
         <Card>
@@ -200,7 +211,7 @@ export default function RolesPage() {
             <ShieldAlert className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{rolesEjemplo.filter((r) => !r.activo).length}</div>
+            <div className="text-2xl font-bold">{roles.filter((r) => !r.activo).length}</div>
           </CardContent>
         </Card>
         <Card>
@@ -209,7 +220,7 @@ export default function RolesPage() {
             <UserCog className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{rolesEjemplo.reduce((sum, rol) => sum + rol.usuarios, 0)}</div>
+            <div className="text-2xl font-bold">{roles.reduce((sum, rol) => sum + (rol.usuarios || 0), 0)}</div>
           </CardContent>
         </Card>
       </div>
@@ -233,41 +244,59 @@ export default function RolesPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead>Descripción</TableHead>
-                    <TableHead>Usuarios</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rolesFiltrados.map((rol) => (
-                    <TableRow key={rol.id}>
-                      <TableCell className="font-medium">{rol.nombre}</TableCell>
-                      <TableCell>{rol.descripcion}</TableCell>
-                      <TableCell>{rol.usuarios}</TableCell>
-                      <TableCell>
-                        <Badge variant={rol.activo ? "default" : "secondary"}>
-                          {rol.activo ? "Activo" : "Inactivo"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button variant="ghost" size="icon" onClick={() => seleccionarRol(rol)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="text-destructive">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
+              {isLoading ? (
+                <div className="flex justify-center items-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nombre</TableHead>
+                      <TableHead>Descripción</TableHead>
+                      <TableHead>Usuarios</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {rolesFiltrados.map((rol) => (
+                      <TableRow key={rol.id}>
+                        <TableCell className="font-medium">{rol.nombre}</TableCell>
+                        <TableCell>{rol.descripcion}</TableCell>
+                        <TableCell>{rol.usuarios}</TableCell>
+                        <TableCell>
+                          <Badge variant={rol.activo ? "default" : "secondary"}>
+                            {rol.activo ? "Activo" : "Inactivo"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button variant="ghost" size="icon" onClick={() => seleccionarRol(rol)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive"
+                              onClick={() => handleEliminarRol(rol.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {rolesFiltrados.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                          No se encontraron roles con los filtros aplicados
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -279,12 +308,23 @@ export default function RolesPage() {
               <CardHeader>
                 <div className="flex justify-between items-center">
                   <div>
-                    <CardTitle>Editar Rol: {rolSeleccionado.nombre}</CardTitle>
-                    <CardDescription>{rolSeleccionado.descripcion}</CardDescription>
+                    <CardTitle>{rolSeleccionado ? `Editar Rol: ${rolSeleccionado.nombre}` : "Nuevo Rol"}</CardTitle>
+                    <CardDescription>
+                      {rolSeleccionado ? rolSeleccionado.descripcion : "Crea un nuevo rol y asigna permisos"}
+                    </CardDescription>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm">Estado:</span>
-                    <Switch checked={rolSeleccionado.activo} />
+                    <Switch
+                      checked={rolSeleccionado ? rolSeleccionado.activo : nuevoRol.activo}
+                      onCheckedChange={(checked) => {
+                        if (rolSeleccionado) {
+                          setRolSeleccionado({ ...rolSeleccionado, activo: checked })
+                        } else {
+                          setNuevoRol({ ...nuevoRol, activo: checked })
+                        }
+                      }}
+                    />
                   </div>
                 </div>
               </CardHeader>
@@ -293,11 +333,31 @@ export default function RolesPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="text-sm font-medium">Nombre del Rol</label>
-                      <Input value={rolSeleccionado.nombre} className="mt-1" />
+                      <Input
+                        value={rolSeleccionado ? rolSeleccionado.nombre : nuevoRol.nombre}
+                        className="mt-1"
+                        onChange={(e) => {
+                          if (rolSeleccionado) {
+                            setRolSeleccionado({ ...rolSeleccionado, nombre: e.target.value })
+                          } else {
+                            setNuevoRol({ ...nuevoRol, nombre: e.target.value })
+                          }
+                        }}
+                      />
                     </div>
                     <div>
                       <label className="text-sm font-medium">Descripción</label>
-                      <Input value={rolSeleccionado.descripcion} className="mt-1" />
+                      <Input
+                        value={rolSeleccionado ? rolSeleccionado.descripcion : nuevoRol.descripcion}
+                        className="mt-1"
+                        onChange={(e) => {
+                          if (rolSeleccionado) {
+                            setRolSeleccionado({ ...rolSeleccionado, descripcion: e.target.value })
+                          } else {
+                            setNuevoRol({ ...nuevoRol, descripcion: e.target.value })
+                          }
+                        }}
+                      />
                     </div>
                   </div>
 
@@ -317,7 +377,14 @@ export default function RolesPage() {
                             <TableCell className="font-medium">{modulo.nombre}</TableCell>
                             <TableCell>{modulo.descripcion}</TableCell>
                             <TableCell className="text-center">
-                              <Checkbox checked={rolSeleccionado.permisos[modulo.id]} />
+                              <Checkbox
+                                checked={
+                                  rolSeleccionado
+                                    ? !!rolSeleccionado.permisos[modulo.id]
+                                    : !!nuevoRol.permisos[modulo.id]
+                                }
+                                onCheckedChange={() => togglePermiso(modulo.id)}
+                              />
                             </TableCell>
                           </TableRow>
                         ))}
@@ -329,9 +396,9 @@ export default function RolesPage() {
                     <Button variant="outline" onClick={cancelarEdicion}>
                       Cancelar
                     </Button>
-                    <Button>
+                    <Button onClick={handleGuardarRol}>
                       <Check className="mr-2 h-4 w-4" />
-                      Guardar Cambios
+                      {rolSeleccionado ? "Guardar Cambios" : "Crear Rol"}
                     </Button>
                   </div>
                 </div>

@@ -1,12 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
-  ArrowDownIcon,
   ArrowUpIcon,
   MinusCircle,
   PlusCircle,
@@ -17,6 +16,7 @@ import {
   Package,
   User,
   UserPlus,
+  Loader2,
 } from "lucide-react"
 import Image from "next/image"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -30,64 +30,10 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-
-// Productos de ejemplo
-const productosEjemplo = [
-  { id: 1, nombre: "ESPONJA CUERPO SUAVE", precio: 120, imagen: "/placeholder.svg?height=100&width=100" },
-  { id: 2, nombre: "PACK JABÓN AVENA", precio: 250, imagen: "/placeholder.svg?height=100&width=100" },
-  { id: 3, nombre: "SANDALIAS FRANJEAS", precio: 890, imagen: "/placeholder.svg?height=100&width=100" },
-  { id: 4, nombre: "COSMETIQUERA FRANJAS", precio: 350, imagen: "/placeholder.svg?height=100&width=100" },
-  { id: 5, nombre: "MONEDERO TEAL", precio: 180, imagen: "/placeholder.svg?height=100&width=100" },
-  { id: 6, nombre: "BOLSO MIMBRE PEQUEÑO", precio: 450, imagen: "/placeholder.svg?height=100&width=100" },
-  { id: 7, nombre: "ESTROPAJO PEQUEÑO", precio: 75, imagen: "/placeholder.svg?height=100&width=100" },
-  { id: 8, nombre: "GORRA OLIVA", precio: 320, imagen: "/placeholder.svg?height=100&width=100" },
-  { id: 9, nombre: "SUÉTER CIELO", precio: 650, imagen: "/placeholder.svg?height=100&width=100" },
-]
-
-// Clientes de ejemplo
-const clientesEjemplo = [
-  { id: 1, nombre: "Cliente General", documento: "N/A", telefono: "N/A", email: "N/A", direccion: "N/A" },
-  {
-    id: 2,
-    nombre: "Juan Pérez",
-    documento: "12345678",
-    telefono: "555-1234",
-    email: "juan@ejemplo.com",
-    direccion: "Calle 123",
-  },
-  {
-    id: 3,
-    nombre: "María López",
-    documento: "87654321",
-    telefono: "555-5678",
-    email: "maria@ejemplo.com",
-    direccion: "Avenida 456",
-  },
-  {
-    id: 4,
-    nombre: "Carlos Rodríguez",
-    documento: "23456789",
-    telefono: "555-9012",
-    email: "carlos@ejemplo.com",
-    direccion: "Plaza 789",
-  },
-  {
-    id: 5,
-    nombre: "Ana Martínez",
-    documento: "98765432",
-    telefono: "555-3456",
-    email: "ana@ejemplo.com",
-    direccion: "Boulevard 012",
-  },
-  {
-    id: 6,
-    nombre: "Distribuidora XYZ",
-    documento: "J-12345678-9",
-    telefono: "555-7890",
-    email: "contacto@xyz.com",
-    direccion: "Zona Industrial",
-  },
-]
+import { useToast } from "@/components/ui/use-toast"
+import VentasService, { type Venta, type ItemVenta } from "@/services/ventas-service"
+import ProductosService, { type Producto } from "@/services/productos-service"
+import ClientesService, { type Cliente } from "@/services/clientes-service"
 
 // Tipo para los items del carrito
 type CartItem = {
@@ -97,42 +43,108 @@ type CartItem = {
   cantidad: number
 }
 
-// Tipo para cliente
-type Cliente = {
-  id: number
-  nombre: string
-  documento: string
-  telefono: string
-  email: string
-  direccion: string
-}
-
 export default function VentasPage() {
+  const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [cartItems, setCartItems] = useState<CartItem[]>([])
-  const [clienteActual, setClienteActual] = useState<Cliente>(clientesEjemplo[0])
+  const [clienteActual, setClienteActual] = useState<Cliente | null>(null)
   const [nuevoCliente, setNuevoCliente] = useState({
     nombre: "",
+    tipo: "Persona",
     documento: "",
     telefono: "",
     email: "",
     direccion: "",
+    fechaRegistro: new Date().toISOString().split("T")[0],
+    estado: "Activo",
   })
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [productos, setProductos] = useState<Producto[]>([])
+  const [productosFiltrados, setProductosFiltrados] = useState<Producto[]>([])
+  const [clientes, setClientes] = useState<Cliente[]>([])
+  const [ventas, setVentas] = useState<Venta[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingVentas, setIsLoadingVentas] = useState(true)
+
+  // Cargar datos al montar el componente
+  useEffect(() => {
+    fetchProductos()
+    fetchClientes()
+    fetchVentas()
+  }, [])
+
+  // Función para obtener productos
+  const fetchProductos = async () => {
+    setIsLoading(true)
+    try {
+      const data = await ProductosService.getAll()
+      setProductos(data)
+      setProductosFiltrados(data)
+    } catch (error) {
+      console.error("Error al cargar productos:", error)
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los productos",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Función para obtener clientes
+  const fetchClientes = async () => {
+    try {
+      const data = await ClientesService.getAll()
+      setClientes(data)
+
+      // Establecer cliente por defecto (Cliente General)
+      const clienteGeneral = data.find((c) => c.nombre === "Cliente General") || data[0]
+      if (clienteGeneral) {
+        setClienteActual(clienteGeneral)
+      }
+    } catch (error) {
+      console.error("Error al cargar clientes:", error)
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los clientes",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Función para obtener ventas
+  const fetchVentas = async () => {
+    setIsLoadingVentas(true)
+    try {
+      const data = await VentasService.getAll()
+      setVentas(data)
+    } catch (error) {
+      console.error("Error al cargar ventas:", error)
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar las ventas",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoadingVentas(false)
+    }
+  }
 
   // Filtrar productos por término de búsqueda
-  const productosFiltrados = productosEjemplo.filter((producto) =>
-    producto.nombre.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+  useEffect(() => {
+    const filtrados = productos.filter((producto) => producto.nombre.toLowerCase().includes(searchTerm.toLowerCase()))
+    setProductosFiltrados(filtrados)
+  }, [searchTerm, productos])
 
   // Añadir producto al carrito
-  const addToCart = (producto) => {
+  const addToCart = (producto: Producto) => {
     const existingItem = cartItems.find((item) => item.id === producto.id)
 
     if (existingItem) {
       setCartItems(cartItems.map((item) => (item.id === producto.id ? { ...item, cantidad: item.cantidad + 1 } : item)))
     } else {
-      setCartItems([...cartItems, { ...producto, cantidad: 1 }])
+      setCartItems([...cartItems, { id: producto.id, nombre: producto.nombre, precio: producto.precio, cantidad: 1 }])
     }
   }
 
@@ -162,33 +174,122 @@ export default function VentasPage() {
 
   // Cambiar cliente
   const handleClienteChange = (clienteId: string) => {
-    const cliente = clientesEjemplo.find((c) => c.id.toString() === clienteId)
+    const cliente = clientes.find((c) => c.id.toString() === clienteId)
     if (cliente) {
       setClienteActual(cliente)
     }
   }
 
   // Guardar nuevo cliente
-  const handleGuardarCliente = () => {
-    // Aquí normalmente harías una llamada a la API para guardar el cliente
-    // Por ahora solo simulamos que se guardó correctamente
-    alert(`Cliente ${nuevoCliente.nombre} guardado correctamente`)
-    setDialogOpen(false)
-    // Limpiar el formulario
-    setNuevoCliente({
-      nombre: "",
-      documento: "",
-      telefono: "",
-      email: "",
-      direccion: "",
-    })
+  const handleGuardarCliente = async () => {
+    try {
+      const nuevoClienteGuardado = await ClientesService.create(nuevoCliente)
+      toast({
+        title: "Cliente guardado",
+        description: `Cliente ${nuevoClienteGuardado.nombre} guardado correctamente`,
+      })
+
+      // Actualizar la lista de clientes y seleccionar el nuevo cliente
+      await fetchClientes()
+      setClienteActual(nuevoClienteGuardado)
+      setDialogOpen(false)
+
+      // Limpiar el formulario
+      setNuevoCliente({
+        nombre: "",
+        tipo: "Persona",
+        documento: "",
+        telefono: "",
+        email: "",
+        direccion: "",
+        fechaRegistro: new Date().toISOString().split("T")[0],
+        estado: "Activo",
+      })
+    } catch (error) {
+      console.error("Error al guardar cliente:", error)
+      toast({
+        title: "Error",
+        description: "No se pudo guardar el cliente",
+        variant: "destructive",
+      })
+    }
   }
 
   // Completar venta
-  const completarVenta = () => {
-    alert(`Venta completada para ${clienteActual.nombre} por $${total.toFixed(2)}`)
-    setCartItems([])
+  const completarVenta = async () => {
+    if (!clienteActual) {
+      toast({
+        title: "Error",
+        description: "Debe seleccionar un cliente para la venta",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (cartItems.length === 0) {
+      toast({
+        title: "Error",
+        description: "El carrito está vacío",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      // Preparar los items de la venta
+      const items: ItemVenta[] = cartItems.map((item) => ({
+        productoId: item.id,
+        cantidad: item.cantidad,
+        precio: item.precio,
+      }))
+
+      // Crear la venta
+      const nuevaVenta = {
+        clienteId: clienteActual.id,
+        fecha: new Date().toISOString(),
+        total: total,
+        items: items,
+        estado: "Completada",
+        vendedorId: 1, // ID del usuario actual (debería venir del contexto de autenticación)
+      }
+
+      await VentasService.create(nuevaVenta)
+
+      toast({
+        title: "Venta completada",
+        description: `Venta completada para ${clienteActual.nombre} por $${total.toFixed(2)}`,
+      })
+
+      // Actualizar la lista de ventas y limpiar el carrito
+      fetchVentas()
+      setCartItems([])
+    } catch (error) {
+      console.error("Error al completar la venta:", error)
+      toast({
+        title: "Error",
+        description: "No se pudo completar la venta",
+        variant: "destructive",
+      })
+    }
   }
+
+  // Calcular estadísticas
+  const ventasDelDia = ventas
+    .filter((v) => new Date(v.fecha).toDateString() === new Date().toDateString())
+    .reduce((sum, v) => sum + v.total, 0)
+
+  const transaccionesDelDia = ventas.filter(
+    (v) => new Date(v.fecha).toDateString() === new Date().toDateString(),
+  ).length
+
+  const productosVendidosHoy = ventas
+    .filter((v) => new Date(v.fecha).toDateString() === new Date().toDateString())
+    .flatMap((v) => v.items)
+    .reduce((sum, item) => sum + item.cantidad, 0)
+
+  const clientesAtendidosHoy = new Set(
+    ventas.filter((v) => new Date(v.fecha).toDateString() === new Date().toDateString()).map((v) => v.clienteId),
+  ).size
 
   return (
     <div className="flex flex-col gap-4">
@@ -203,10 +304,10 @@ export default function VentasPage() {
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$12,234.56</div>
+            <div className="text-2xl font-bold">${ventasDelDia.toFixed(2)}</div>
             <p className="text-xs text-muted-foreground flex items-center">
               <ArrowUpIcon className="mr-1 h-4 w-4 text-green-500" />
-              +15% desde ayer
+              Actualizado hoy
             </p>
           </CardContent>
         </Card>
@@ -216,10 +317,10 @@ export default function VentasPage() {
             <Receipt className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">145</div>
+            <div className="text-2xl font-bold">{transaccionesDelDia}</div>
             <p className="text-xs text-muted-foreground flex items-center">
               <ArrowUpIcon className="mr-1 h-4 w-4 text-green-500" />
-              +8% desde ayer
+              Actualizado hoy
             </p>
           </CardContent>
         </Card>
@@ -229,10 +330,10 @@ export default function VentasPage() {
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">432</div>
+            <div className="text-2xl font-bold">{productosVendidosHoy}</div>
             <p className="text-xs text-muted-foreground flex items-center">
               <ArrowUpIcon className="mr-1 h-4 w-4 text-green-500" />
-              +12% desde ayer
+              Actualizado hoy
             </p>
           </CardContent>
         </Card>
@@ -242,10 +343,10 @@ export default function VentasPage() {
             <User className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">87</div>
+            <div className="text-2xl font-bold">{clientesAtendidosHoy}</div>
             <p className="text-xs text-muted-foreground flex items-center">
-              <ArrowDownIcon className="mr-1 h-4 w-4 text-red-500" />
-              -3% desde ayer
+              <ArrowUpIcon className="mr-1 h-4 w-4 text-green-500" />
+              Actualizado hoy
             </p>
           </CardContent>
         </Card>
@@ -270,25 +371,36 @@ export default function VentasPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {productosFiltrados.map((producto) => (
-                  <div
-                    key={producto.id}
-                    className="flex flex-col items-center p-3 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
-                    onClick={() => addToCart(producto)}
-                  >
-                    <Image
-                      src={producto.imagen || "/placeholder.svg"}
-                      alt={producto.nombre}
-                      width={80}
-                      height={80}
-                      className="object-cover mb-2"
-                    />
-                    <p className="text-xs font-medium text-center">{producto.nombre}</p>
-                    <p className="text-sm font-bold">${producto.precio.toFixed(2)}</p>
-                  </div>
-                ))}
-              </div>
+              {isLoading ? (
+                <div className="flex justify-center items-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {productosFiltrados.map((producto) => (
+                    <div
+                      key={producto.id}
+                      className="flex flex-col items-center p-3 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => addToCart(producto)}
+                    >
+                      <Image
+                        src={producto.imagen || "/placeholder.svg?height=80&width=80"}
+                        alt={producto.nombre}
+                        width={80}
+                        height={80}
+                        className="object-cover mb-2"
+                      />
+                      <p className="text-xs font-medium text-center">{producto.nombre}</p>
+                      <p className="text-sm font-bold">${producto.precio.toFixed(2)}</p>
+                    </div>
+                  ))}
+                  {productosFiltrados.length === 0 && (
+                    <div className="col-span-full text-center py-8 text-muted-foreground">
+                      No se encontraron productos con el término de búsqueda
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -326,6 +438,23 @@ export default function VentasPage() {
                             onChange={(e) => setNuevoCliente({ ...nuevoCliente, nombre: e.target.value })}
                             className="col-span-3"
                           />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="tipo" className="text-right">
+                            Tipo
+                          </Label>
+                          <Select
+                            value={nuevoCliente.tipo}
+                            onValueChange={(value) => setNuevoCliente({ ...nuevoCliente, tipo: value })}
+                          >
+                            <SelectTrigger className="col-span-3">
+                              <SelectValue placeholder="Seleccionar tipo" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Persona">Persona</SelectItem>
+                              <SelectItem value="Empresa">Empresa</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                           <Label htmlFor="documento" className="text-right">
@@ -381,19 +510,23 @@ export default function VentasPage() {
                     </DialogContent>
                   </Dialog>
                 </div>
-                <Select defaultValue={clienteActual.id.toString()} onValueChange={handleClienteChange}>
+                <Select
+                  value={clienteActual?.id.toString()}
+                  onValueChange={handleClienteChange}
+                  disabled={clientes.length === 0}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Seleccionar cliente" />
                   </SelectTrigger>
                   <SelectContent>
-                    {clientesEjemplo.map((cliente) => (
+                    {clientes.map((cliente) => (
                       <SelectItem key={cliente.id} value={cliente.id.toString()}>
                         {cliente.nombre}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {clienteActual.id !== 1 && (
+                {clienteActual && clienteActual.documento !== "N/A" && (
                   <div className="text-xs text-muted-foreground mt-1">
                     <div>Documento: {clienteActual.documento}</div>
                     <div>Teléfono: {clienteActual.telefono}</div>
@@ -469,7 +602,7 @@ export default function VentasPage() {
                 <Button
                   className="bg-emerald-600 hover:bg-emerald-700"
                   onClick={completarVenta}
-                  disabled={cartItems.length === 0}
+                  disabled={cartItems.length === 0 || !clienteActual}
                 >
                   Vender
                 </Button>
@@ -485,36 +618,54 @@ export default function VentasPage() {
           <CardDescription>Últimas transacciones realizadas</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Ticket</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Fecha</TableHead>
-                <TableHead>Productos</TableHead>
-                <TableHead>Total</TableHead>
-                <TableHead>Vendedor</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
-                  <TableCell className="font-medium">T-{1000 + i}</TableCell>
-                  <TableCell>{clientesEjemplo[i % clientesEjemplo.length].nombre}</TableCell>
-                  <TableCell>{`${new Date().toLocaleDateString()}, ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}</TableCell>
-                  <TableCell>{Math.floor(Math.random() * 10) + 1}</TableCell>
-                  <TableCell>${((i + 1) * 199.99).toFixed(2)}</TableCell>
-                  <TableCell>Vendedor {(i % 3) + 1}</TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm">
-                      Ver detalle
-                    </Button>
-                  </TableCell>
+          {isLoadingVentas ? (
+            <div className="flex justify-center items-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ID</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Fecha</TableHead>
+                  <TableHead>Productos</TableHead>
+                  <TableHead>Total</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {ventas.slice(0, 5).map((venta) => {
+                  const cliente = clientes.find((c) => c.id === venta.clienteId)
+                  const cantidadProductos = venta.items.reduce((sum, item) => sum + item.cantidad, 0)
+
+                  return (
+                    <TableRow key={venta.id}>
+                      <TableCell className="font-medium">V-{venta.id}</TableCell>
+                      <TableCell>{cliente?.nombre || `Cliente ID: ${venta.clienteId}`}</TableCell>
+                      <TableCell>{new Date(venta.fecha).toLocaleString()}</TableCell>
+                      <TableCell>{cantidadProductos}</TableCell>
+                      <TableCell>${venta.total.toFixed(2)}</TableCell>
+                      <TableCell>{venta.estado}</TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm">
+                          Ver detalle
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+                {ventas.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      No hay ventas registradas
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>

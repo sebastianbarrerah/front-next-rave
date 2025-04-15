@@ -25,7 +25,7 @@ export default function Home() {
           <Link className="text-sm font-medium hover:text-primary transition-colors" href="/login">
             Iniciar sesión
           </Link>
-          <Link className="text-sm font-medium hover:text-primary transition-colors" href="/register">
+          <Link className="text-sm font-medium hover:text-primary transition-colors" href="/login?tab=register">
             Registro
           </Link>
           <ThemeToggle />
@@ -54,7 +54,7 @@ export default function Home() {
                       Iniciar sesión <ArrowRight className="h-4 w-4" />
                     </Button>
                   </Link>
-                  <Link href="/register">
+                  <Link href="/login?tab=register">
                     <Button size="lg" variant="outline" className="hover-scale">
                       Ir al registro
                     </Button>
@@ -81,7 +81,7 @@ export default function Home() {
                   <img
                     alt="Dashboard Preview"
                     className="relative z-10 mx-auto aspect-video overflow-hidden rounded-xl object-cover object-center shadow-2xl hover-scale h-[550px] w-[800px]"
-                    src="https://static6.depositphotos.com/1000144/599/i/450/depositphotos_5993206-stock-photo-set-of-working-tools-on.jpg"  
+                    src="https://static6.depositphotos.com/1000144/599/i/450/depositphotos_5993206-stock-photo-set-of-working-tools-on.jpg"
                   />
                 </div>
               </div>
@@ -159,7 +159,6 @@ export default function Home() {
             </div>
           </div>
         </section>
-       
       </main>
       <footer className="flex flex-col gap-2 sm:flex-row py-6 w-full shrink-0 items-center px-4 md:px-6 border-t">
         <p className="text-xs text-muted-foreground">

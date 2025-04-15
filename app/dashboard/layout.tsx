@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import {
   BarChart3,
   ClipboardList,
@@ -20,6 +20,8 @@ import {
   Search,
   FileEdit,
   ShieldCheck,
+  LogOut,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
@@ -35,6 +37,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import { useToast } from "@/components/ui/use-toast"
+import AuthService from "@/services/auth-service"
+import AuthGuard from "@/components/auth-guard"
 
 interface NavItem {
   title: string
@@ -95,15 +100,40 @@ const navItems: NavItem[] = [
   },
 ]
 
-export default function DashboardLayout({
+function DashboardLayoutContent({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const { toast } = useToast()
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
+  const [user, setUser] = useState<any>(null)
   const pathname = usePathname()
+
+  // Cargar datos del usuario
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        // Intentar obtener datos del usuario desde localStorage primero
+        const storedUser = localStorage.getItem("user")
+        if (storedUser) {
+          setUser(JSON.parse(storedUser))
+        } else {
+          // Si no hay datos en localStorage, obtenerlos de la API
+          const userProfile = await AuthService.getProfile()
+          setUser(userProfile)
+          localStorage.setItem("user", JSON.stringify(userProfile))
+        }
+      } catch (error) {
+        console.error("Error al cargar datos del usuario:", error)
+      }
+    }
+
+    loadUserData()
+  }, [])
 
   // Evitar problemas de hidratación con el tema
   useEffect(() => {
@@ -114,13 +144,30 @@ export default function DashboardLayout({
   const handleSearch = (e) => {
     e.preventDefault()
     if (searchTerm.trim()) {
-      alert(`Buscando: ${searchTerm}`)
+      toast({
+        title: "Búsqueda iniciada",
+        description: `Buscando: "${searchTerm}" en el sistema`,
+      })
       // Aquí iría la lógica de búsqueda global
     }
   }
 
+  // Función para cerrar sesión
+  const handleLogout = () => {
+    AuthService.logout()
+    toast({
+      title: "Sesión cerrada",
+      description: "Has cerrado sesión correctamente. ¡Hasta pronto!",
+    })
+    router.push("/login")
+  }
+
   if (!mounted) {
-    return null
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    )
   }
 
   return (
@@ -191,13 +238,16 @@ export default function DashboardLayout({
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 relative">
                 <Avatar className="h-8 w-8">
-                  <AvatarImage src="/placeholder-user.jpg" alt="Usuario" />
-                  <AvatarFallback>UN</AvatarFallback>
+                  <AvatarImage src="/placeholder-user.jpg" alt={user?.name || "Usuario"} />
+                  <AvatarFallback>{user?.name?.charAt(0) || "U"}</AvatarFallback>
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
+              <DropdownMenuLabel>
+                {user?.name || "Usuario"}
+                {user?.email && <p className="text-xs text-muted-foreground mt-1">{user.email}</p>}
+              </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem>
                 <User className="mr-2 h-4 w-4" />
@@ -208,7 +258,7 @@ export default function DashboardLayout({
                 <span>Configuración</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={handleLogout}>
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Cerrar sesión</span>
               </DropdownMenuItem>
@@ -239,9 +289,9 @@ export default function DashboardLayout({
                 <h3 className="font-medium text-primary">¿Necesitas ayuda?</h3>
                 <p className="mt-1 text-sm text-muted-foreground">Nuestro equipo de soporte está disponible 24/7</p>
                 <Link href="https://docs.google.com/forms/d/e/1FAIpQLScRDr8GjEQltg9ttmHUM95C8qR4xgG6JszN37jMh7LplFkfhg/viewform?usp=sharing">
-                <Button className="mt-3 w-full" size="sm">
-                  Contactar Soporte
-                </Button>
+                  <Button className="mt-3 w-full" size="sm">
+                    Contactar Soporte
+                  </Button>
                 </Link>
               </div>
             </div>
@@ -252,6 +302,18 @@ export default function DashboardLayout({
         </main>
       </div>
     </div>
+  )
+}
+
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <AuthGuard>
+      <DashboardLayoutContent>{children}</DashboardLayoutContent>
+    </AuthGuard>
   )
 }
 
@@ -271,27 +333,6 @@ function User(props) {
     >
       <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
       <circle cx="12" cy="7" r="4" />
-    </svg>
-  )
-}
-
-function LogOut(props) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-      <polyline points="16 17 21 12 16 7" />
-      <line x1="21" x2="9" y1="12" y2="12" />
     </svg>
   )
 }

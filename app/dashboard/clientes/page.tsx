@@ -5,7 +5,20 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, Plus, Users, UserCheck, Building, Edit, Trash2, Mail, Phone, FileText, Filter } from "lucide-react"
+import {
+  Search,
+  Plus,
+  Users,
+  UserCheck,
+  Building,
+  Edit,
+  Trash2,
+  Mail,
+  Phone,
+  FileText,
+  Filter,
+  Loader2,
+} from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -19,109 +32,58 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-
-// Clientes de ejemplo
-const clientesEjemplo = [
-  {
-    id: 1,
-    nombre: "Juan Pérez",
-    tipo: "Persona",
-    documento: "12345678",
-    email: "juan@ejemplo.com",
-    telefono: "555-1234",
-    direccion: "Calle 123, Ciudad",
-    fechaRegistro: "15/01/2023",
-    estado: "Activo",
-    compras: 12,
-    totalCompras: 2500,
-  },
-  {
-    id: 2,
-    nombre: "María López",
-    tipo: "Persona",
-    documento: "87654321",
-    email: "maria@ejemplo.com",
-    telefono: "555-5678",
-    direccion: "Avenida 456, Ciudad",
-    fechaRegistro: "03/03/2023",
-    estado: "Activo",
-    compras: 8,
-    totalCompras: 1800,
-  },
-  {
-    id: 3,
-    nombre: "Distribuidora XYZ",
-    tipo: "Empresa",
-    documento: "J-12345678-9",
-    email: "contacto@xyz.com",
-    telefono: "555-9012",
-    direccion: "Zona Industrial, Ciudad",
-    fechaRegistro: "10/06/2023",
-    estado: "Activo",
-    compras: 25,
-    totalCompras: 12500,
-  },
-  {
-    id: 4,
-    nombre: "Carlos Rodríguez",
-    tipo: "Persona",
-    documento: "23456789",
-    email: "carlos@ejemplo.com",
-    telefono: "555-3456",
-    direccion: "Plaza 789, Ciudad",
-    fechaRegistro: "22/08/2023",
-    estado: "Inactivo",
-    compras: 3,
-    totalCompras: 750,
-  },
-  {
-    id: 5,
-    nombre: "Empresa ABC",
-    tipo: "Empresa",
-    documento: "J-98765432-1",
-    email: "info@abc.com",
-    telefono: "555-7890",
-    direccion: "Centro Comercial, Ciudad",
-    fechaRegistro: "05/10/2023",
-    estado: "Activo",
-    compras: 18,
-    totalCompras: 8900,
-  },
-  {
-    id: 6,
-    nombre: "Ana Martínez",
-    tipo: "Persona",
-    documento: "34567890",
-    email: "ana@ejemplo.com",
-    telefono: "555-2345",
-    direccion: "Boulevard 012, Ciudad",
-    fechaRegistro: "17/11/2023",
-    estado: "Activo",
-    compras: 6,
-    totalCompras: 1200,
-  },
-]
+import { useToast } from "@/components/ui/use-toast"
+import ClientesService, { type Cliente } from "@/services/clientes-service"
 
 export default function ClientesPage() {
+  const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [filtroTipo, setFiltroTipo] = useState("Todos")
   const [filtroEstado, setFiltroEstado] = useState("Todos")
-  const [clienteSeleccionado, setClienteSeleccionado] = useState(null)
-  const [nuevoCliente, setNuevoCliente] = useState({
+  const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null)
+  const [nuevoCliente, setNuevoCliente] = useState<Omit<Cliente, "id">>({
     nombre: "",
     tipo: "Persona",
     documento: "",
     email: "",
     telefono: "",
     direccion: "",
+    fechaRegistro: new Date().toISOString().split("T")[0],
+    estado: "Activo",
   })
   const [dialogOpen, setDialogOpen] = useState(false)
   const [filtrosVisibles, setFiltrosVisibles] = useState(false)
-  const [clientesFiltrados, setClientesFiltrados] = useState(clientesEjemplo)
+  const [clientes, setClientes] = useState<Cliente[]>([])
+  const [clientesFiltrados, setClientesFiltrados] = useState<Cliente[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Cargar clientes al montar el componente
+  useEffect(() => {
+    fetchClientes()
+  }, [])
+
+  // Función para obtener clientes
+  const fetchClientes = async () => {
+    setIsLoading(true)
+    try {
+      const data = await ClientesService.getAll()
+      setClientes(data)
+      setClientesFiltrados(data)
+    } catch (error) {
+      console.error("Error al cargar clientes:", error)
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los clientes",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   // Función para filtrar clientes
   const filtrarClientes = () => {
-    const filtrados = clientesEjemplo.filter((cliente) => {
+    const filtrados = clientes.filter((cliente) => {
       // Filtro por término de búsqueda
       const matchesSearch =
         cliente.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -143,40 +105,89 @@ export default function ClientesPage() {
   // Aplicar filtros cuando cambien los criterios
   useEffect(() => {
     filtrarClientes()
-  }, [searchTerm, filtroTipo, filtroEstado])
+  }, [searchTerm, filtroTipo, filtroEstado, clientes])
 
   // Seleccionar cliente para editar
-  const seleccionarCliente = (cliente) => {
+  const seleccionarCliente = (cliente: Cliente) => {
     setClienteSeleccionado(cliente)
     setDialogOpen(true)
   }
 
   // Guardar cliente
-  const handleGuardarCliente = () => {
-    if (clienteSeleccionado) {
-      // Lógica para actualizar cliente existente
-      alert(`Cliente ${clienteSeleccionado.nombre} actualizado correctamente`)
-    } else {
-      // Lógica para guardar nuevo cliente
-      alert(`Cliente ${nuevoCliente.nombre} guardado correctamente`)
+  const handleGuardarCliente = async () => {
+    try {
+      if (clienteSeleccionado) {
+        // Actualizar cliente existente
+        await ClientesService.update(clienteSeleccionado.id, clienteSeleccionado)
+        toast({
+          title: "Cliente actualizado",
+          description: `Cliente ${clienteSeleccionado.nombre} actualizado correctamente`,
+        })
+
+        // Actualizar la lista de clientes
+        fetchClientes()
+      } else {
+        // Crear nuevo cliente
+        await ClientesService.create(nuevoCliente)
+        toast({
+          title: "Cliente guardado",
+          description: `Cliente ${nuevoCliente.nombre} guardado correctamente`,
+        })
+
+        // Actualizar la lista de clientes
+        fetchClientes()
+      }
+
+      setDialogOpen(false)
+      setClienteSeleccionado(null)
+      setNuevoCliente({
+        nombre: "",
+        tipo: "Persona",
+        documento: "",
+        email: "",
+        telefono: "",
+        direccion: "",
+        fechaRegistro: new Date().toISOString().split("T")[0],
+        estado: "Activo",
+      })
+    } catch (error) {
+      console.error("Error al guardar cliente:", error)
+      toast({
+        title: "Error",
+        description: "No se pudo guardar el cliente",
+        variant: "destructive",
+      })
     }
-    setDialogOpen(false)
-    setClienteSeleccionado(null)
-    setNuevoCliente({
-      nombre: "",
-      tipo: "Persona",
-      documento: "",
-      email: "",
-      telefono: "",
-      direccion: "",
-    })
+  }
+
+  // Eliminar cliente
+  const handleEliminarCliente = async (id: number) => {
+    if (confirm("¿Está seguro de eliminar este cliente?")) {
+      try {
+        await ClientesService.delete(id)
+        toast({
+          title: "Cliente eliminado",
+          description: "Cliente eliminado correctamente",
+        })
+
+        // Actualizar la lista de clientes
+        fetchClientes()
+      } catch (error) {
+        console.error("Error al eliminar cliente:", error)
+        toast({
+          title: "Error",
+          description: "No se pudo eliminar el cliente",
+          variant: "destructive",
+        })
+      }
+    }
   }
 
   // Calcular estadísticas
   const totalClientes = clientesFiltrados.length
   const clientesActivos = clientesFiltrados.filter((c) => c.estado === "Activo").length
   const clientesInactivos = clientesFiltrados.filter((c) => c.estado === "Inactivo").length
-  const totalCompras = clientesFiltrados.reduce((sum, cliente) => sum + cliente.totalCompras, 0)
+  const totalCompras = clientesFiltrados.reduce((sum, cliente) => sum + (cliente.totalCompras || 0), 0)
 
   return (
     <div className="flex flex-col gap-4">
@@ -294,6 +305,27 @@ export default function ClientesPage() {
                   }
                   className="col-span-3"
                 />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="estado" className="text-right">
+                  Estado
+                </Label>
+                <Select
+                  value={clienteSeleccionado ? clienteSeleccionado.estado : nuevoCliente.estado}
+                  onValueChange={(value) =>
+                    clienteSeleccionado
+                      ? setClienteSeleccionado({ ...clienteSeleccionado, estado: value })
+                      : setNuevoCliente({ ...nuevoCliente, estado: value })
+                  }
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Seleccionar estado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Activo">Activo</SelectItem>
+                    <SelectItem value="Inactivo">Inactivo</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <DialogFooter>
@@ -414,73 +446,88 @@ export default function ClientesPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Documento</TableHead>
-                    <TableHead>Contacto</TableHead>
-                    <TableHead>Compras</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {clientesFiltrados.map((cliente) => (
-                    <TableRow key={cliente.id}>
-                      <TableCell className="font-medium">{cliente.nombre}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {cliente.tipo === "Empresa" ? (
-                            <Building className="h-3 w-3 mr-1" />
-                          ) : (
-                            <Users className="h-3 w-3 mr-1" />
-                          )}
-                          {cliente.tipo}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{cliente.documento}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span className="text-xs flex items-center">
-                            <Mail className="h-3 w-3 mr-1" /> {cliente.email}
-                          </span>
-                          <span className="text-xs flex items-center">
-                            <Phone className="h-3 w-3 mr-1" /> {cliente.telefono}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span>{cliente.compras} compras</span>
-                          <span className="text-xs text-muted-foreground">${cliente.totalCompras.toFixed(2)}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={cliente.estado === "Activo" ? "default" : "secondary"}>{cliente.estado}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button variant="ghost" size="icon" onClick={() => seleccionarCliente(cliente)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="text-destructive">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {clientesFiltrados.length === 0 && (
+              {isLoading ? (
+                <div className="flex justify-center items-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                        No se encontraron clientes con los filtros aplicados
-                      </TableCell>
+                      <TableHead>Nombre</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Documento</TableHead>
+                      <TableHead>Contacto</TableHead>
+                      <TableHead>Compras</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {clientesFiltrados.map((cliente) => (
+                      <TableRow key={cliente.id}>
+                        <TableCell className="font-medium">{cliente.nombre}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">
+                            {cliente.tipo === "Empresa" ? (
+                              <Building className="h-3 w-3 mr-1" />
+                            ) : (
+                              <Users className="h-3 w-3 mr-1" />
+                            )}
+                            {cliente.tipo}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{cliente.documento}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="text-xs flex items-center">
+                              <Mail className="h-3 w-3 mr-1" /> {cliente.email}
+                            </span>
+                            <span className="text-xs flex items-center">
+                              <Phone className="h-3 w-3 mr-1" /> {cliente.telefono}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span>{cliente.compras || 0} compras</span>
+                            <span className="text-xs text-muted-foreground">
+                              ${(cliente.totalCompras || 0).toFixed(2)}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={cliente.estado === "Activo" ? "default" : "secondary"}>
+                            {cliente.estado}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button variant="ghost" size="icon" onClick={() => seleccionarCliente(cliente)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive"
+                              onClick={() => handleEliminarCliente(cliente.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {clientesFiltrados.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                          No se encontraron clientes con los filtros aplicados
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -505,59 +552,72 @@ export default function ClientesPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead>Documento</TableHead>
-                    <TableHead>Contacto</TableHead>
-                    <TableHead>Compras</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {clientesFiltrados
-                    .filter((cliente) => cliente.tipo === "Persona")
-                    .map((cliente) => (
-                      <TableRow key={cliente.id}>
-                        <TableCell className="font-medium">{cliente.nombre}</TableCell>
-                        <TableCell>{cliente.documento}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span className="text-xs flex items-center">
-                              <Mail className="h-3 w-3 mr-1" /> {cliente.email}
-                            </span>
-                            <span className="text-xs flex items-center">
-                              <Phone className="h-3 w-3 mr-1" /> {cliente.telefono}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span>{cliente.compras} compras</span>
-                            <span className="text-xs text-muted-foreground">${cliente.totalCompras.toFixed(2)}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={cliente.estado === "Activo" ? "default" : "secondary"}>
-                            {cliente.estado}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="icon" onClick={() => seleccionarCliente(cliente)}>
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="text-destructive">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
+              {isLoading ? (
+                <div className="flex justify-center items-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nombre</TableHead>
+                      <TableHead>Documento</TableHead>
+                      <TableHead>Contacto</TableHead>
+                      <TableHead>Compras</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {clientesFiltrados
+                      .filter((cliente) => cliente.tipo === "Persona")
+                      .map((cliente) => (
+                        <TableRow key={cliente.id}>
+                          <TableCell className="font-medium">{cliente.nombre}</TableCell>
+                          <TableCell>{cliente.documento}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="text-xs flex items-center">
+                                <Mail className="h-3 w-3 mr-1" /> {cliente.email}
+                              </span>
+                              <span className="text-xs flex items-center">
+                                <Phone className="h-3 w-3 mr-1" /> {cliente.telefono}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span>{cliente.compras || 0} compras</span>
+                              <span className="text-xs text-muted-foreground">
+                                ${(cliente.totalCompras || 0).toFixed(2)}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={cliente.estado === "Activo" ? "default" : "secondary"}>
+                              {cliente.estado}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button variant="ghost" size="icon" onClick={() => seleccionarCliente(cliente)}>
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-destructive"
+                                onClick={() => handleEliminarCliente(cliente.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -582,59 +642,72 @@ export default function ClientesPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead>RIF/NIT</TableHead>
-                    <TableHead>Contacto</TableHead>
-                    <TableHead>Compras</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {clientesFiltrados
-                    .filter((cliente) => cliente.tipo === "Empresa")
-                    .map((cliente) => (
-                      <TableRow key={cliente.id}>
-                        <TableCell className="font-medium">{cliente.nombre}</TableCell>
-                        <TableCell>{cliente.documento}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span className="text-xs flex items-center">
-                              <Mail className="h-3 w-3 mr-1" /> {cliente.email}
-                            </span>
-                            <span className="text-xs flex items-center">
-                              <Phone className="h-3 w-3 mr-1" /> {cliente.telefono}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span>{cliente.compras} compras</span>
-                            <span className="text-xs text-muted-foreground">${cliente.totalCompras.toFixed(2)}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={cliente.estado === "Activo" ? "default" : "secondary"}>
-                            {cliente.estado}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="icon" onClick={() => seleccionarCliente(cliente)}>
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="text-destructive">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
+              {isLoading ? (
+                <div className="flex justify-center items-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nombre</TableHead>
+                      <TableHead>RIF/NIT</TableHead>
+                      <TableHead>Contacto</TableHead>
+                      <TableHead>Compras</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {clientesFiltrados
+                      .filter((cliente) => cliente.tipo === "Empresa")
+                      .map((cliente) => (
+                        <TableRow key={cliente.id}>
+                          <TableCell className="font-medium">{cliente.nombre}</TableCell>
+                          <TableCell>{cliente.documento}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="text-xs flex items-center">
+                                <Mail className="h-3 w-3 mr-1" /> {cliente.email}
+                              </span>
+                              <span className="text-xs flex items-center">
+                                <Phone className="h-3 w-3 mr-1" /> {cliente.telefono}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span>{cliente.compras || 0} compras</span>
+                              <span className="text-xs text-muted-foreground">
+                                ${(cliente.totalCompras || 0).toFixed(2)}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={cliente.estado === "Activo" ? "default" : "secondary"}>
+                              {cliente.estado}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button variant="ghost" size="icon" onClick={() => seleccionarCliente(cliente)}>
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-destructive"
+                                onClick={() => handleEliminarCliente(cliente.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
